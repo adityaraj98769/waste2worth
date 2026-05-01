@@ -77,7 +77,7 @@ const Friends = () => {
     );
 
     // Fetch profiles for all friends
-    let profileMap: Record<string, string> = {};
+    const profileMap: Record<string, string> = {};
     if (friendUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")

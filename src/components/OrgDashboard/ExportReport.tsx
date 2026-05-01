@@ -34,7 +34,7 @@ const ExportReport = ({ orgName, members, totalScans, totalCo2 }: ExportReportPr
       rows.push(["Report Date", new Date().toLocaleDateString()]);
 
       const csvContent = [headers, ...rows]
-        .map((row) => (row as any[]).map((cell) => `"${cell ?? ""}"`).join(","))
+        .map((row) => (row as string[]).map((cell) => `"${cell ?? ""}"`).join(","))
         .join("\n");
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });

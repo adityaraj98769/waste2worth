@@ -139,7 +139,7 @@ const Facilities = () => {
       if (!res.ok) throw new Error("Overpass error");
       const json = await res.json();
       const elements = json.elements || [];
-      let parsed: Facility[] = elements.map((el: any) => {
+      const parsed: Facility[] = elements.map((el: any) => {
         const amenity = el.tags?.amenity || el.tags?.shop || el.tags?.landuse || "recycling";
         return {
           id: el.id,

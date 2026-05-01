@@ -1,5 +1,5 @@
 // Legacy mock data — kept for reference only.
-export const mockResults: any[] = [
+export const mockResults: Record<string, unknown>[] = [
   {
     name: "PET Plastic Bottle",
     confidence: 94,
@@ -92,6 +92,6 @@ export const mockResults: any[] = [
   },
 ];
 
-export const getRandomResult = (): any => {
+export const getRandomResult = (): Record<string, unknown> => {
   return mockResults[Math.floor(Math.random() * mockResults.length)];
 };

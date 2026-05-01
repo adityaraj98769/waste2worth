@@ -94,7 +94,7 @@ const ShareScanModal = ({ open, onClose, scanId, itemName }: ShareScanModalProps
         const otherDate = otherLastShared ? new Date(otherLastShared).toDateString() : null;
         const todayStr = new Date().toDateString();
 
-        const updates: any = {
+        const updates: Record<string, Date> = {
           [updateField]: now,
           last_interaction_at: now,
         };
@@ -108,7 +108,7 @@ const ShareScanModal = ({ open, onClose, scanId, itemName }: ShareScanModalProps
 
       setSent((prev) => new Set(prev).add(friendId));
       toast.success(`Shared with ${friends.find((f) => f.friendId === friendId)?.friendName}!`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error("Failed to share");
     } finally {
       setSending(null);

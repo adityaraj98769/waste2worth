@@ -31,8 +31,8 @@ const StudentManagement = ({ orgId, members, onMemberRemoved }: StudentManagemen
       toast.success("Student removed from organization");
       setConfirmId(null);
       onMemberRemoved();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to remove student");
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Failed to remove student");
     } finally {
       setRemoving(null);
     }
