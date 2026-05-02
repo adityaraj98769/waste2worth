@@ -1,8 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-
 const SYSTEM_PROMPT = `You are a waste classification assistant. Analyze the provided image and identify ALL waste items visible.
 
 Respond ONLY with a valid JSON object — no markdown, no explanation, no backticks. Use this exact shape:
@@ -60,70 +57,33 @@ function hashImage(b64: string): string {
   return `${len}:${head.length}:${tail.length}:${btoa(head.slice(0, 80) + tail.slice(0, 80))}`;
 }
 
-async function callGroqVision(
+async function callScanFunction(
   imageBase64: string
 ): Promise<{ items: any[]; scan_type: "single" | "multi" }> {
-  if (!GROQ_API_KEY) {
-    throw new Error(
-      "Missing VITE_GROQ_API_KEY in environment. Add VITE_GROQ_API_KEY to your .env and restart the app."
-    );
-  }
-
-  const base64Data = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
-  const mimeType = imageBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
-
-  const response = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
-      max_tokens: 1024,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${base64Data}` },
-            },
-            {
-              type: "text",
-              text: "Identify and classify all waste items in this image. Return JSON only.",
-            },
-          ],
-        },
-      ],
-    }),
+  const { data, error } = await supabase.functions.invoke<
+    { items: any[]; scan_type: "single" | "multi"; total_credits?: number; error?: string }
+  >("scan-waste", {
+    body: JSON.stringify({ image: imageBase64 }),
   });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Groq API error:", errorBody);
-    throw new Error(`Groq API request failed (${response.status}): ${response.statusText}`);
+  if (error) {
+    console.error("scan-waste function error:", error);
+    throw new Error(error.message || "Scan service failed");
   }
 
-  const data = await response.json();
-  const rawContent: string = data.choices?.[0]?.message?.content ?? "";
-
-  const cleaned = rawContent.replace(/```(?:json)?/gi, "").trim();
-
-  let parsed: { items: any[]; scan_type: "single" | "multi" };
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    console.error("Failed to parse Groq response:", rawContent);
-    throw new Error("Received an unexpected response format from Groq. Please try again.");
+  if (!data || ("error" in data && data.error)) {
+    throw new Error((data as any)?.error || "Scan service returned no data");
   }
 
-  if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (items.length === 0) {
     throw new Error("No items detected");
   }
 
-  return parsed;
+  return {
+    items,
+    scan_type: data.scan_type || (items.length > 1 ? "multi" : "single"),
+  };
 }
 
 // ── Main export (all credits / dedup / streak logic unchanged) ───────────────
@@ -151,8 +111,8 @@ export async function scanWasteImage(imageBase64: string): Promise<MultiScanResu
     }
   }
 
-  // ── AI call via Groq vision endpoint ────────
-  const visionData = await callGroqVision(imageBase64);
+  // ── AI call via Supabase edge function `scan-waste` ────────
+  const visionData = await callScanFunction(imageBase64);
   const items: any[] = visionData.items;
   const scanType: "single" | "multi" =
     visionData.scan_type || (items.length > 1 ? "multi" : "single");

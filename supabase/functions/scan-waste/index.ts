@@ -6,6 +6,29 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const SYSTEM_PROMPT = `You are a waste classification assistant. Analyze the provided image and identify ALL waste items visible.
+
+Respond ONLY with a valid JSON object — no markdown, no explanation, no backticks. Use this exact shape:
+
+{
+  "scan_type": "single" or "multi",
+  "items": [
+    {
+      "name": "string — short item name (e.g. 'Plastic Bottle')",
+      "category": "one of: recyclable | compostable | hazardous | landfill | upcyclable",
+      "material": "string — primary material (e.g. 'PET Plastic', 'Glass', 'Cardboard')",
+      "confidence": number between 0 and 1,
+      "disposal_steps": ["step 1", "step 2", "step 3"],
+      "upcycle_ideas": ["idea 1", "idea 2"],
+      "co2_saved_kg": number,
+      "water_saved_liters": number
+    }
+  ]
+}
+
+If multiple distinct waste items are visible, include each as a separate entry in items[].
+Set scan_type to "multi" if more than one item is present, otherwise "single".`;
+
 const baseCredits: Record<string, number> = {
   recyclable: 10,
   compostable: 8,
@@ -26,45 +49,33 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        max_tokens: 1024,
         messages: [
-          {
-            role: "system",
-            content: `You are an expert waste identification AI. Identify ALL distinct waste items visible in this image. Return ONLY valid JSON, no markdown. Max 5 items. If only one item, still return an array with one element.
-
-JSON shape:
-{
-  "items": [
-    {
-      "name": "string",
-      "category": "recyclable" | "compostable" | "hazardous" | "landfill" | "upcyclable",
-      "material": "string",
-      "confidence": 0-100,
-      "disposal_steps": ["max 3 steps"],
-      "upcycle_ideas": ["max 2 ideas"],
-      "co2_saved_kg": number,
-      "water_saved_liters": number
-    }
-  ]
-}`
-          },
+          { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
             content: [
-              { type: "text", text: "Identify ALL distinct waste items. Return ONLY the JSON object." },
-              { type: "image_url", image_url: { url: image } }
-            ]
-          }
+              {
+                type: "image_url",
+                image_url: { url: image },
+              },
+              {
+                type: "text",
+                text: "Identify and classify all waste items in this image. Return JSON only.",
+              },
+            ],
+          },
         ],
       }),
     });
