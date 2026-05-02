@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const SYSTEM_PROMPT = `You are a waste classification assistant. Analyze the provided image and identify ALL waste items visible.
 
@@ -60,22 +60,20 @@ function hashImage(b64: string): string {
   return `${len}:${head.length}:${tail.length}:${btoa(head.slice(0, 80) + tail.slice(0, 80))}`;
 }
 
-// ── OpenAI vision call (replaces supabase.functions.invoke("scan-waste")) ──────
-async function callVisionAPI(
+async function callGroqVision(
   imageBase64: string
 ): Promise<{ items: any[]; scan_type: "single" | "multi" }> {
-  // Strip data-URL prefix if present
   const base64Data = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
   const mimeType = imageBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
 
-  const response = await fetch(OPENAI_API_URL, {
+  const response = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o",
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
       max_tokens: 1024,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -98,22 +96,21 @@ async function callVisionAPI(
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error("OpenAI API error:", errorBody);
-    throw new Error(`OpenAI API request failed (${response.status}): ${response.statusText}`);
+    console.error("Groq API error:", errorBody);
+    throw new Error(`Groq API request failed (${response.status}): ${response.statusText}`);
   }
 
   const data = await response.json();
   const rawContent: string = data.choices?.[0]?.message?.content ?? "";
 
-  // Strip accidental markdown fences
   const cleaned = rawContent.replace(/```(?:json)?/gi, "").trim();
 
   let parsed: { items: any[]; scan_type: "single" | "multi" };
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    console.error("Failed to parse OpenAI response:", rawContent);
-    throw new Error("Received an unexpected response format from OpenAI. Please try again.");
+    console.error("Failed to parse Groq response:", rawContent);
+    throw new Error("Received an unexpected response format from Groq. Please try again.");
   }
 
   if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
@@ -148,8 +145,8 @@ export async function scanWasteImage(imageBase64: string): Promise<MultiScanResu
     }
   }
 
-  // ── AI call via OpenAI (was: supabase.functions.invoke("scan-waste")) ────────
-  const visionData = await callVisionAPI(imageBase64);
+  // ── AI call via Groq vision endpoint ────────
+  const visionData = await callGroqVision(imageBase64);
   const items: any[] = visionData.items;
   const scanType: "single" | "multi" =
     visionData.scan_type || (items.length > 1 ? "multi" : "single");
