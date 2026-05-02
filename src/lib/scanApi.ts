@@ -63,6 +63,12 @@ function hashImage(b64: string): string {
 async function callGroqVision(
   imageBase64: string
 ): Promise<{ items: any[]; scan_type: "single" | "multi" }> {
+  if (!GROQ_API_KEY) {
+    throw new Error(
+      "Missing VITE_GROQ_API_KEY in environment. Add VITE_GROQ_API_KEY to your .env and restart the app."
+    );
+  }
+
   const base64Data = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
   const mimeType = imageBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
 
