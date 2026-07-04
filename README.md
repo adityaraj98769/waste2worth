@@ -1,5 +1,3 @@
----
-
 # 👥 Team & Contributions
 
 Waste2Worth is a collaborative project developed by **Team TrashToTreasure**.
